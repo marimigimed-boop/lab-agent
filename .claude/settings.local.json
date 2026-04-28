@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/user/Desktop/mymed/app/**)",
+      "Bash(xargs grep *)"
+    ]
+  }
+}
