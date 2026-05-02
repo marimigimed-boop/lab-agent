@@ -27,7 +27,6 @@ jobs:
           MAILRU_PASSWORD:   ${{ secrets.MAILRU_PASSWORD }}
           ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
           DEST_PASSWORD:     ${{ secrets.DEST_PASSWORD }}
-          SEND_TO:           marimigi@mail.ru
           DEST_EMAIL:        marimigi@mail.ru
           DEST_FOLDER:       rezalt LAB moimed
           MAILRU_FOLDER:     ЛАБОРАТОРИЯ ДИАЛАБ

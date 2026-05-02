@@ -15,7 +15,6 @@ from email.message import EmailMessage
 from io import BytesIO
 from pathlib import Path
 
-import smtplib
 import anthropic
 import pdfplumber
 from dotenv import load_dotenv
@@ -31,15 +30,12 @@ MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
 ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
 MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "ЛАБОРАТОРИЯ ДИАЛАБ")
 SINCE_DATE      = os.getenv("SINCE_DATE", "02-May-2026")
-SEND_TO         = os.getenv("SEND_TO", "marimigi@mail.ru")
 DEST_EMAIL      = os.getenv("DEST_EMAIL", "marimigi@mail.ru")
 DEST_PASSWORD   = os.environ["DEST_PASSWORD"]
 DEST_FOLDER     = os.getenv("DEST_FOLDER", "rezalt LAB moimed")
 
 IMAP_HOST = "imap.mail.ru"
 IMAP_PORT = 993
-SMTP_HOST = "smtp.mail.ru"
-SMTP_PORT = 465
 
 # ── Логирование ────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -357,17 +353,6 @@ def build_raw_message(subject: str, body: str, to: str) -> bytes:
     return msg.as_bytes()
 
 
-def send_via_smtp(subject: str, body: str) -> None:
-    msg = EmailMessage()
-    msg["From"]    = MAILRU_EMAIL
-    msg["To"]      = SEND_TO
-    msg["Subject"] = subject
-    msg.set_content(body, charset="utf-8")
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.login(MAILRU_EMAIL, MAILRU_PASSWORD)
-        smtp.send_message(msg)
-    log.info("  Отправлено на %s", SEND_TO)
-
 
 def save_to_dest_folder(subject: str, body: str) -> None:
     """Сохраняет письмо напрямую в папку DEST_FOLDER на DEST_EMAIL через IMAP."""
@@ -437,9 +422,6 @@ def run() -> None:
 
                 reply_subject = f"Интерпретация анализов — {patient_name} {email_date}"
                 reply_body    = format_reply(patient_name, email_date, interpretation)
-
-                # Отправляем на почту врача
-                send_via_smtp(reply_subject, reply_body)
 
                 # Сохраняем в папку "rezalt LAB moimed" на marimigi@mail.ru
                 save_to_dest_folder(reply_subject, reply_body)
