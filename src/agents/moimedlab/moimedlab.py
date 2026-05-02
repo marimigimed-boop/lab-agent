@@ -1,8 +1,8 @@
 """
 moimedlab — агент интерпретации лабораторных анализов
 Читает письма из папки "лаборатория диалаб" на moimed23@mail.ru,
-интерпретирует анализы через Claude API и сохраняет результат
-напрямую в папку "Результаты ЛАБ".
+интерпретирует анализы через Claude API и отправляет результат
+на marimigi@mail.ru в папку "rezalt LAB moimed".
 """
 
 import email
@@ -30,9 +30,11 @@ MAILRU_EMAIL    = os.environ["MAILRU_EMAIL"]
 MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
 ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
 MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "ЛАБОРАТОРИЯ ДИАЛАБ")
-RESULT_FOLDER   = os.getenv("RESULT_FOLDER", "Результаты ЛАБ")
 SINCE_DATE      = os.getenv("SINCE_DATE", "02-May-2026")
 SEND_TO         = os.getenv("SEND_TO", "marimigi@mail.ru")
+DEST_EMAIL      = os.getenv("DEST_EMAIL", "marimigi@mail.ru")
+DEST_PASSWORD   = os.environ["DEST_PASSWORD"]
+DEST_FOLDER     = os.getenv("DEST_FOLDER", "rezalt LAB moimed")
 
 IMAP_HOST = "imap.mail.ru"
 IMAP_PORT = 993
@@ -367,6 +369,18 @@ def send_via_smtp(subject: str, body: str) -> None:
     log.info("  Отправлено на %s", SEND_TO)
 
 
+def save_to_dest_folder(subject: str, body: str) -> None:
+    """Сохраняет письмо напрямую в папку DEST_FOLDER на DEST_EMAIL через IMAP."""
+    raw = build_raw_message(subject, body, DEST_EMAIL)
+    with IMAPClient(IMAP_HOST, port=IMAP_PORT, ssl=True) as dest:
+        dest.login(DEST_EMAIL, DEST_PASSWORD)
+        if not dest.folder_exists(DEST_FOLDER):
+            dest.create_folder(DEST_FOLDER)
+            log.info("  Папка '%s' создана на %s", DEST_FOLDER, DEST_EMAIL)
+        dest.append(DEST_FOLDER, raw, flags=["\\Seen"])
+        log.info("  Сохранено в '%s' на %s", DEST_FOLDER, DEST_EMAIL)
+
+
 # ── Основная логика ────────────────────────────────────────────────────────────
 
 def run() -> None:
@@ -377,11 +391,6 @@ def run() -> None:
     with IMAPClient(IMAP_HOST, port=IMAP_PORT, ssl=True) as client:
         client.login(MAILRU_EMAIL, MAILRU_PASSWORD)
         log.info("Авторизация успешна")
-
-        # Создаём папку результатов если не существует
-        if not client.folder_exists(RESULT_FOLDER):
-            client.create_folder(RESULT_FOLDER)
-            log.info("Папка '%s' создана", RESULT_FOLDER)
 
         # Выбираем папку с анализами
         try:
@@ -432,10 +441,8 @@ def run() -> None:
                 # Отправляем на почту врача
                 send_via_smtp(reply_subject, reply_body)
 
-                # Сохраняем копию в папку "Результаты ЛАБ"
-                reply_raw = build_raw_message(reply_subject, reply_body, SEND_TO)
-                client.append(RESULT_FOLDER, reply_raw, flags=["\\Seen"])
-                log.info("  Сохранено в '%s'", RESULT_FOLDER)
+                # Сохраняем в папку "rezalt LAB moimed" на marimigi@mail.ru
+                save_to_dest_folder(reply_subject, reply_body)
 
                 # Помечаем исходное письмо как прочитанное
                 client.set_flags([msg_id], ["\\Seen"])
