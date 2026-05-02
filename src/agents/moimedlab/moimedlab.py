@@ -31,6 +31,8 @@ MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
 ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
 MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "лаборатория диалаб")
 SEND_TO         = os.getenv("SEND_TO", MAILRU_EMAIL)
+# Письма только начиная с этой даты (формат ДД-Mon-ГГГГ, месяц на английском)
+SINCE_DATE      = os.getenv("SINCE_DATE", "01-May-2025")
 
 IMAP_HOST = "imap.mail.ru"
 IMAP_PORT = 993
@@ -208,10 +210,12 @@ def run() -> None:
             log.error("Папка '%s' не найдена. Проверьте MAILRU_FOLDER в .env", MAILRU_FOLDER)
             return
 
-        # Ищем непрочитанные письма
-        status, data = imap.search(None, "UNSEEN")
+        # Ищем непрочитанные письма начиная с SINCE_DATE
+        search_criteria = f'(UNSEEN SINCE {SINCE_DATE})'
+        log.info("Критерий поиска: %s", search_criteria)
+        status, data = imap.search(None, search_criteria)
         if status != "OK" or not data[0]:
-            log.info("Непрочитанных писем нет — выходим.")
+            log.info("Непрочитанных писем с %s нет — выходим.", SINCE_DATE)
             return
 
         msg_ids = data[0].split()
