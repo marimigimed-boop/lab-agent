@@ -15,6 +15,7 @@ from email.message import EmailMessage
 from io import BytesIO
 from pathlib import Path
 
+import smtplib
 import anthropic
 import pdfplumber
 from dotenv import load_dotenv
@@ -28,12 +29,15 @@ load_dotenv(env_path)
 MAILRU_EMAIL    = os.environ["MAILRU_EMAIL"]
 MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
 ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
-MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "лаборатория диалаб")
+MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "ЛАБОРАТОРИЯ ДИАЛАБ")
 RESULT_FOLDER   = os.getenv("RESULT_FOLDER", "Результаты ЛАБ")
-SINCE_DATE      = os.getenv("SINCE_DATE", "01-May-2025")
+SINCE_DATE      = os.getenv("SINCE_DATE", "02-May-2026")
+SEND_TO         = os.getenv("SEND_TO", "marimigi@mail.ru")
 
 IMAP_HOST = "imap.mail.ru"
 IMAP_PORT = 993
+SMTP_HOST = "smtp.mail.ru"
+SMTP_PORT = 465
 
 # ── Логирование ────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -341,14 +345,26 @@ def format_reply(patient_name: str, email_date: str, interpretation: str) -> str
     )
 
 
-def build_raw_message(subject: str, body: str) -> bytes:
+def build_raw_message(subject: str, body: str, to: str) -> bytes:
     msg = EmailMessage()
     msg["From"]    = MAILRU_EMAIL
-    msg["To"]      = MAILRU_EMAIL
+    msg["To"]      = to
     msg["Subject"] = subject
     msg["Date"]    = email.utils.formatdate()
     msg.set_content(body, charset="utf-8")
     return msg.as_bytes()
+
+
+def send_via_smtp(subject: str, body: str) -> None:
+    msg = EmailMessage()
+    msg["From"]    = MAILRU_EMAIL
+    msg["To"]      = SEND_TO
+    msg["Subject"] = subject
+    msg.set_content(body, charset="utf-8")
+    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
+        smtp.login(MAILRU_EMAIL, MAILRU_PASSWORD)
+        smtp.send_message(msg)
+    log.info("  Отправлено на %s", SEND_TO)
 
 
 # ── Основная логика ────────────────────────────────────────────────────────────
@@ -411,9 +427,13 @@ def run() -> None:
                 interpretation = interpret_with_claude(patient_name, from_addr, email_date, full_content)
 
                 reply_subject = f"Интерпретация анализов — {patient_name} {email_date}"
-                reply_raw     = build_raw_message(reply_subject, format_reply(patient_name, email_date, interpretation))
+                reply_body    = format_reply(patient_name, email_date, interpretation)
 
-                # Сохраняем напрямую в папку "Результаты ЛАБ"
+                # Отправляем на почту врача
+                send_via_smtp(reply_subject, reply_body)
+
+                # Сохраняем копию в папку "Результаты ЛАБ"
+                reply_raw = build_raw_message(reply_subject, reply_body, SEND_TO)
                 client.append(RESULT_FOLDER, reply_raw, flags=["\\Seen"])
                 log.info("  Сохранено в '%s'", RESULT_FOLDER)
 
