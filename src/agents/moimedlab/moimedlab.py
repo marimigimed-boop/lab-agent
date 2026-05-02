@@ -1,6 +1,6 @@
 """
 moimedlab — агент интерпретации лабораторных анализов
-Читает письма из папки dialab на moimed23@mail.ru,
+Читает письма из папки "лаборатория диалаб" на moimed23@mail.ru,
 интерпретирует анализы через Claude API и отправляет ответ.
 """
 
@@ -29,7 +29,7 @@ load_dotenv(env_path)
 MAILRU_EMAIL    = os.environ["MAILRU_EMAIL"]
 MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
 ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
-MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "dialab")
+MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "лаборатория диалаб")
 SEND_TO         = os.getenv("SEND_TO", MAILRU_EMAIL)
 
 IMAP_HOST = "imap.mail.ru"
