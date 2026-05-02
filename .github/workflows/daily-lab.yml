@@ -1,0 +1,37 @@
+name: Daily Lab Results
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # 09:00 Moscow time (UTC+3) every day
+  workflow_dispatch:        # manual trigger from GitHub UI
+
+jobs:
+  run-agent:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run moimedlab agent
+        env:
+          MAILRU_EMAIL:      ${{ secrets.MAILRU_EMAIL }}
+          MAILRU_PASSWORD:   ${{ secrets.MAILRU_PASSWORD }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          DEST_PASSWORD:     ${{ secrets.DEST_PASSWORD }}
+          SEND_TO:           marimigi@mail.ru
+          DEST_EMAIL:        marimigi@mail.ru
+          DEST_FOLDER:       rezalt LAB moimed
+          MAILRU_FOLDER:     ЛАБОРАТОРИЯ ДИАЛАБ
+          SINCE_DATE:        02-May-2026
+        run: |
+          cd src/agents/moimedlab
+          python run.py
