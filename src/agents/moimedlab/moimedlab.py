@@ -1,13 +1,14 @@
 """
 moimedlab — агент интерпретации лабораторных анализов
 Читает письма из папки "лаборатория диалаб" на moimed23@mail.ru,
-интерпретирует анализы через Claude API и отправляет ответ.
+интерпретирует анализы через Claude API и сохраняет результат
+напрямую в папку "Результаты ЛАБ" через IMAP.
 """
 
 import email
+import email.header
 import imaplib
 import logging
-import smtplib
 import sys
 from datetime import datetime
 from email import policy
@@ -22,7 +23,6 @@ from dotenv import load_dotenv
 import os
 
 # ── Загрузка настроек ──────────────────────────────────────────────────────────
-# Ищем .env в корне проекта (3 уровня вверх от этого файла)
 env_path = Path(__file__).resolve().parents[3] / ".env"
 load_dotenv(env_path)
 
@@ -30,14 +30,11 @@ MAILRU_EMAIL    = os.environ["MAILRU_EMAIL"]
 MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
 ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
 MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "лаборатория диалаб")
-SEND_TO         = os.getenv("SEND_TO", MAILRU_EMAIL)
-# Письма только начиная с этой даты (формат ДД-Mon-ГГГГ, месяц на английском)
+RESULT_FOLDER   = os.getenv("RESULT_FOLDER", "Результаты ЛАБ")
 SINCE_DATE      = os.getenv("SINCE_DATE", "01-May-2025")
 
 IMAP_HOST = "imap.mail.ru"
 IMAP_PORT = 993
-SMTP_HOST = "smtp.mail.ru"
-SMTP_PORT = 465
 
 # ── Логирование ────────────────────────────────────────────────────────────────
 logging.basicConfig(
@@ -57,7 +54,6 @@ claude = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
 # ── Вспомогательные функции ────────────────────────────────────────────────────
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
-    """Извлекает текст из PDF-вложения."""
     text_parts: list[str] = []
     with pdfplumber.open(BytesIO(pdf_bytes)) as pdf:
         for page in pdf.pages:
@@ -68,10 +64,6 @@ def extract_pdf_text(pdf_bytes: bytes) -> str:
 
 
 def extract_email_content(msg: email.message.Message) -> tuple[str, list[str]]:
-    """
-    Возвращает (text_body, list_of_attachment_texts).
-    Обрабатывает multipart письма, извлекает PDF и текстовые вложения.
-    """
     body_parts: list[str] = []
     attachment_texts: list[str] = []
 
@@ -85,11 +77,9 @@ def extract_email_content(msg: email.message.Message) -> tuple[str, list[str]]:
                 payload  = part.get_payload(decode=True)
                 if not payload:
                     continue
-
                 if filename.lower().endswith(".pdf") or content_type == "application/pdf":
                     log.info("    Извлекаю PDF: %s", filename)
-                    pdf_text = extract_pdf_text(payload)
-                    attachment_texts.append(f"[ВЛОЖЕНИЕ: {filename}]\n{pdf_text}")
+                    attachment_texts.append(f"[ВЛОЖЕНИЕ: {filename}]\n{extract_pdf_text(payload)}")
                 elif content_type.startswith("text/"):
                     charset = part.get_content_charset("utf-8")
                     attachment_texts.append(payload.decode(charset, errors="replace"))
@@ -99,12 +89,10 @@ def extract_email_content(msg: email.message.Message) -> tuple[str, list[str]]:
                     charset = part.get_content_charset("utf-8")
                     body_parts.append(payload.decode(charset, errors="replace"))
             elif content_type == "text/html" and not body_parts:
-                # HTML fallback — берём только если нет plain text
                 payload = part.get_payload(decode=True)
                 if payload:
-                    charset = part.get_content_charset("utf-8")
-                    # Упрощённое удаление тегов
                     import re
+                    charset = part.get_content_charset("utf-8")
                     raw_html = payload.decode(charset, errors="replace")
                     plain = re.sub(r"<[^>]+>", " ", raw_html)
                     plain = re.sub(r"\s{2,}", " ", plain).strip()
@@ -118,19 +106,16 @@ def extract_email_content(msg: email.message.Message) -> tuple[str, list[str]]:
     return "\n".join(body_parts).strip(), attachment_texts
 
 
-def guess_patient_name(msg: email.message.Message, body: str) -> str:
-    """Пытается вычислить имя пациента из темы письма или тела."""
+def decode_subject(msg: email.message.Message) -> str:
     subject = msg.get("Subject", "") or ""
-    # Декодируем RFC 2047
     decoded_parts = email.header.decode_header(subject)
-    decoded_subject = ""
+    result = ""
     for part, enc in decoded_parts:
         if isinstance(part, bytes):
-            decoded_subject += part.decode(enc or "utf-8", errors="replace")
+            result += part.decode(enc or "utf-8", errors="replace")
         else:
-            decoded_subject += part
-    # Берём тему как имя, если она не пустая
-    return decoded_subject.strip() if decoded_subject.strip() else "Пациент (имя не указано)"
+            result += part
+    return result.strip() or "Пациент (имя не указано)"
 
 
 def build_full_content(body: str, attachments: list[str]) -> str:
@@ -148,7 +133,6 @@ def interpret_with_claude(patient_name: str, source_email: str, email_date: str,
     from .prompts import SYSTEM_PROMPT, build_user_message
 
     user_msg = build_user_message(patient_name, source_email, email_date, content)
-
     log.info("  Отправляю в Claude: %s", patient_name)
     response = claude.messages.create(
         model="claude-opus-4-7",
@@ -159,7 +143,7 @@ def interpret_with_claude(patient_name: str, source_email: str, email_date: str,
     return response.content[0].text
 
 
-# ── Форматирование ответного письма ───────────────────────────────────────────
+# ── Форматирование письма-результата ──────────────────────────────────────────
 
 def format_reply(patient_name: str, email_date: str, interpretation: str) -> str:
     sep = "━" * 50
@@ -174,23 +158,33 @@ def format_reply(patient_name: str, email_date: str, interpretation: str) -> str
         f"{interpretation}\n\n"
         f"{sep}\n"
         f"Сгенерировано агентом moimedlab | МОЙ МЕД\n"
-        f"Это автоматическое письмо — не отвечайте на него напрямую.\n"
     )
 
 
-# ── SMTP — отправка ────────────────────────────────────────────────────────────
+# ── Сохранение в папку через IMAP APPEND ──────────────────────────────────────
 
-def send_reply(subject: str, body: str) -> None:
+def ensure_folder_exists(imap: imaplib.IMAP4_SSL, folder: str) -> None:
+    """Создаёт папку если она не существует."""
+    status, folders = imap.list()
+    existing = [f.decode() if isinstance(f, bytes) else f for f in (folders or [])]
+    folder_exists = any(f'"{folder}"' in line or f' {folder}' in line for line in existing)
+    if not folder_exists:
+        imap.create(f'"{folder}"')
+        log.info("Папка '%s' создана", folder)
+
+
+def save_to_folder(imap: imaplib.IMAP4_SSL, subject: str, body: str) -> None:
+    """Сохраняет письмо напрямую в папку RESULT_FOLDER через IMAP APPEND."""
     msg = EmailMessage()
     msg["From"]    = MAILRU_EMAIL
-    msg["To"]      = SEND_TO
+    msg["To"]      = MAILRU_EMAIL
     msg["Subject"] = subject
+    msg["Date"]    = email.utils.formatdate()
     msg.set_content(body, charset="utf-8")
 
-    with smtplib.SMTP_SSL(SMTP_HOST, SMTP_PORT) as smtp:
-        smtp.login(MAILRU_EMAIL, MAILRU_PASSWORD)
-        smtp.send_message(msg)
-    log.info("  Ответ отправлен: %s", subject)
+    raw = msg.as_bytes()
+    imap.append(f'"{RESULT_FOLDER}"', "\\Seen", imaplib.Time2Internaldate(datetime.now()), raw)
+    log.info("  Сохранено в папку '%s': %s", RESULT_FOLDER, subject)
 
 
 # ── Основная логика ────────────────────────────────────────────────────────────
@@ -204,7 +198,10 @@ def run() -> None:
         imap.login(MAILRU_EMAIL, MAILRU_PASSWORD)
         log.info("Авторизация успешна")
 
-        # Выбираем папку dialab
+        # Убеждаемся что папка результатов существует
+        ensure_folder_exists(imap, RESULT_FOLDER)
+
+        # Выбираем папку с анализами
         status, _ = imap.select(f'"{MAILRU_FOLDER}"')
         if status != "OK":
             log.error("Папка '%s' не найдена. Проверьте MAILRU_FOLDER в .env", MAILRU_FOLDER)
@@ -219,18 +216,16 @@ def run() -> None:
             return
 
         msg_ids = data[0].split()
-        log.info("Найдено непрочитанных писем: %d", len(msg_ids))
+        log.info("Найдено писем: %d", len(msg_ids))
 
         for msg_id in msg_ids:
             try:
                 log.info("Обрабатываю письмо #%s …", msg_id.decode())
 
-                # Загружаем письмо целиком
                 _, raw_data = imap.fetch(msg_id, "(RFC822)")
                 raw_email = raw_data[0][1]
                 msg = email.message_from_bytes(raw_email, policy=policy.default)
 
-                # Метаданные
                 from_addr  = msg.get("From", "неизвестно")
                 date_raw   = msg.get("Date", "")
                 try:
@@ -238,26 +233,23 @@ def run() -> None:
                 except Exception:
                     email_date = date_raw or "дата неизвестна"
 
-                # Содержимое
                 body, attachments = extract_email_content(msg)
-                patient_name = guess_patient_name(msg, body)
+                patient_name = decode_subject(msg)
                 full_content = build_full_content(body, attachments)
 
                 log.info("  Пациент: %s | От: %s | Дата: %s", patient_name, from_addr, email_date)
 
-                if not full_content.strip() or full_content == "[Письмо пустое, вложения отсутствуют]":
+                if full_content == "[Письмо пустое, вложения отсутствуют]":
                     log.warning("  Письмо пустое — пропускаю")
                     continue
 
-                # Интерпретация
                 interpretation = interpret_with_claude(patient_name, from_addr, email_date, full_content)
 
-                # Формируем и отправляем ответ
                 reply_body    = format_reply(patient_name, email_date, interpretation)
                 reply_subject = f"Интерпретация анализов — {patient_name} {email_date}"
-                send_reply(reply_subject, reply_body)
+                save_to_folder(imap, reply_subject, reply_body)
 
-                # Помечаем как прочитанное
+                # Помечаем исходное письмо как прочитанное
                 imap.store(msg_id, "+FLAGS", "\\Seen")
                 processed += 1
 
