@@ -2,24 +2,23 @@
 moimedlab — агент интерпретации лабораторных анализов
 Читает письма из папки "лаборатория диалаб" на moimed23@mail.ru,
 интерпретирует анализы через Claude API и сохраняет результат
-напрямую в папку "Результаты ЛАБ" через IMAP.
+напрямую в папку "Результаты ЛАБ".
 """
 
 import email
 import email.header
-import imaplib
+import email.utils
 import logging
 import sys
 from datetime import datetime
-from email import policy
 from email.message import EmailMessage
-from email.utils import parsedate_to_datetime
 from io import BytesIO
 from pathlib import Path
 
 import anthropic
 import pdfplumber
 from dotenv import load_dotenv
+from imapclient import IMAPClient
 import os
 
 # ── Загрузка настроек ──────────────────────────────────────────────────────────
@@ -51,7 +50,7 @@ log = logging.getLogger("moimedlab")
 claude = anthropic.Anthropic(api_key=ANTHROPIC_KEY)
 
 
-# ── Вспомогательные функции ────────────────────────────────────────────────────
+# ── Извлечение содержимого ─────────────────────────────────────────────────────
 
 def extract_pdf_text(pdf_bytes: bytes) -> str:
     text_parts: list[str] = []
@@ -78,7 +77,7 @@ def extract_email_content(msg: email.message.Message) -> tuple[str, list[str]]:
                 if not payload:
                     continue
                 if filename.lower().endswith(".pdf") or content_type == "application/pdf":
-                    log.info("    Извлекаю PDF: %s", filename)
+                    log.info("    PDF: %s", filename)
                     attachment_texts.append(f"[ВЛОЖЕНИЕ: {filename}]\n{extract_pdf_text(payload)}")
                 elif content_type.startswith("text/"):
                     charset = part.get_content_charset("utf-8")
@@ -93,8 +92,8 @@ def extract_email_content(msg: email.message.Message) -> tuple[str, list[str]]:
                 if payload:
                     import re
                     charset = part.get_content_charset("utf-8")
-                    raw_html = payload.decode(charset, errors="replace")
-                    plain = re.sub(r"<[^>]+>", " ", raw_html)
+                    raw = payload.decode(charset, errors="replace")
+                    plain = re.sub(r"<[^>]+>", " ", raw)
                     plain = re.sub(r"\s{2,}", " ", plain).strip()
                     body_parts.append(plain)
     else:
@@ -114,7 +113,7 @@ def decode_subject(msg: email.message.Message) -> str:
         if isinstance(part, bytes):
             result += part.decode(enc or "utf-8", errors="replace")
         else:
-            result += part
+            result += str(part)
     return result.strip() or "Пациент (имя не указано)"
 
 
@@ -133,7 +132,7 @@ def interpret_with_claude(patient_name: str, source_email: str, email_date: str,
     from .prompts import SYSTEM_PROMPT, build_user_message
 
     user_msg = build_user_message(patient_name, source_email, email_date, content)
-    log.info("  Отправляю в Claude: %s", patient_name)
+    log.info("  Claude: %s", patient_name)
     response = claude.messages.create(
         model="claude-opus-4-7",
         max_tokens=2048,
@@ -143,7 +142,7 @@ def interpret_with_claude(patient_name: str, source_email: str, email_date: str,
     return response.content[0].text
 
 
-# ── Форматирование письма-результата ──────────────────────────────────────────
+# ── Форматирование ─────────────────────────────────────────────────────────────
 
 def format_reply(patient_name: str, email_date: str, interpretation: str) -> str:
     sep = "━" * 50
@@ -161,30 +160,14 @@ def format_reply(patient_name: str, email_date: str, interpretation: str) -> str
     )
 
 
-# ── Сохранение в папку через IMAP APPEND ──────────────────────────────────────
-
-def ensure_folder_exists(imap: imaplib.IMAP4_SSL, folder: str) -> None:
-    """Создаёт папку если она не существует."""
-    status, folders = imap.list()
-    existing = [f.decode() if isinstance(f, bytes) else f for f in (folders or [])]
-    folder_exists = any(f'"{folder}"' in line or f' {folder}' in line for line in existing)
-    if not folder_exists:
-        imap.create(f'"{folder}"')
-        log.info("Папка '%s' создана", folder)
-
-
-def save_to_folder(imap: imaplib.IMAP4_SSL, subject: str, body: str) -> None:
-    """Сохраняет письмо напрямую в папку RESULT_FOLDER через IMAP APPEND."""
+def build_raw_message(subject: str, body: str) -> bytes:
     msg = EmailMessage()
     msg["From"]    = MAILRU_EMAIL
     msg["To"]      = MAILRU_EMAIL
     msg["Subject"] = subject
     msg["Date"]    = email.utils.formatdate()
     msg.set_content(body, charset="utf-8")
-
-    raw = msg.as_bytes()
-    imap.append(f'"{RESULT_FOLDER}"', "\\Seen", imaplib.Time2Internaldate(datetime.now()), raw)
-    log.info("  Сохранено в папку '%s': %s", RESULT_FOLDER, subject)
+    return msg.as_bytes()
 
 
 # ── Основная логика ────────────────────────────────────────────────────────────
@@ -194,41 +177,42 @@ def run() -> None:
     processed = 0
     errors    = 0
 
-    with imaplib.IMAP4_SSL(IMAP_HOST, IMAP_PORT) as imap:
-        imap.login(MAILRU_EMAIL, MAILRU_PASSWORD)
+    with IMAPClient(IMAP_HOST, port=IMAP_PORT, ssl=True) as client:
+        client.login(MAILRU_EMAIL, MAILRU_PASSWORD)
         log.info("Авторизация успешна")
 
-        # Убеждаемся что папка результатов существует
-        ensure_folder_exists(imap, RESULT_FOLDER)
+        # Создаём папку результатов если не существует
+        if not client.folder_exists(RESULT_FOLDER):
+            client.create_folder(RESULT_FOLDER)
+            log.info("Папка '%s' создана", RESULT_FOLDER)
 
         # Выбираем папку с анализами
-        status, _ = imap.select(f'"{MAILRU_FOLDER}"')
-        if status != "OK":
+        try:
+            client.select_folder(MAILRU_FOLDER)
+        except Exception:
             log.error("Папка '%s' не найдена. Проверьте MAILRU_FOLDER в .env", MAILRU_FOLDER)
             return
 
         # Ищем непрочитанные письма начиная с SINCE_DATE
-        search_criteria = f'(UNSEEN SINCE {SINCE_DATE})'
-        log.info("Критерий поиска: %s", search_criteria)
-        status, data = imap.search(None, search_criteria)
-        if status != "OK" or not data[0]:
+        messages = client.search(["UNSEEN", "SINCE", SINCE_DATE])
+        if not messages:
             log.info("Непрочитанных писем с %s нет — выходим.", SINCE_DATE)
             return
 
-        msg_ids = data[0].split()
-        log.info("Найдено писем: %d", len(msg_ids))
+        log.info("Найдено писем: %d", len(messages))
 
-        for msg_id in msg_ids:
+        for msg_id in messages:
             try:
-                log.info("Обрабатываю письмо #%s …", msg_id.decode())
+                log.info("Обрабатываю письмо #%s …", msg_id)
 
-                _, raw_data = imap.fetch(msg_id, "(RFC822)")
-                raw_email = raw_data[0][1]
-                msg = email.message_from_bytes(raw_email, policy=policy.default)
+                raw_data  = client.fetch([msg_id], ["RFC822"])
+                raw_email = raw_data[msg_id][b"RFC822"]
+                msg = email.message_from_bytes(raw_email)
 
-                from_addr  = msg.get("From", "неизвестно")
-                date_raw   = msg.get("Date", "")
+                from_addr = msg.get("From", "неизвестно")
+                date_raw  = msg.get("Date", "")
                 try:
+                    from email.utils import parsedate_to_datetime
                     email_date = parsedate_to_datetime(date_raw).strftime("%d.%m.%Y")
                 except Exception:
                     email_date = date_raw or "дата неизвестна"
@@ -237,24 +221,27 @@ def run() -> None:
                 patient_name = decode_subject(msg)
                 full_content = build_full_content(body, attachments)
 
-                log.info("  Пациент: %s | От: %s | Дата: %s", patient_name, from_addr, email_date)
+                log.info("  %s | %s | %s", patient_name, from_addr, email_date)
 
                 if full_content == "[Письмо пустое, вложения отсутствуют]":
-                    log.warning("  Письмо пустое — пропускаю")
+                    log.warning("  Пустое — пропускаю")
                     continue
 
                 interpretation = interpret_with_claude(patient_name, from_addr, email_date, full_content)
 
-                reply_body    = format_reply(patient_name, email_date, interpretation)
                 reply_subject = f"Интерпретация анализов — {patient_name} {email_date}"
-                save_to_folder(imap, reply_subject, reply_body)
+                reply_raw     = build_raw_message(reply_subject, format_reply(patient_name, email_date, interpretation))
+
+                # Сохраняем напрямую в папку "Результаты ЛАБ"
+                client.append(RESULT_FOLDER, reply_raw, flags=["\\Seen"])
+                log.info("  Сохранено в '%s'", RESULT_FOLDER)
 
                 # Помечаем исходное письмо как прочитанное
-                imap.store(msg_id, "+FLAGS", "\\Seen")
+                client.set_flags([msg_id], ["\\Seen"])
                 processed += 1
 
             except Exception as e:
-                log.exception("Ошибка при обработке письма #%s: %s", msg_id.decode(), e)
+                log.exception("Ошибка #%s: %s", msg_id, e)
                 errors += 1
 
     log.info("=== Готово: обработано %d, ошибок %d ===", processed, errors)
