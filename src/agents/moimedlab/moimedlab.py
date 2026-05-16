@@ -29,13 +29,13 @@ import os
 env_path = Path(__file__).resolve().parents[3] / ".env"
 load_dotenv(env_path)
 
-MAILRU_EMAIL    = os.environ["MAILRU_EMAIL"]
-MAILRU_PASSWORD = os.environ["MAILRU_PASSWORD"]
-ANTHROPIC_KEY   = os.environ["ANTHROPIC_API_KEY"]
+MAILRU_EMAIL    = os.getenv("MAILRU_EMAIL", "")
+MAILRU_PASSWORD = os.getenv("MAILRU_PASSWORD", "")
+ANTHROPIC_KEY   = os.getenv("ANTHROPIC_API_KEY", "")
 MAILRU_FOLDER   = os.getenv("MAILRU_FOLDER", "ЛАБОРАТОРИЯ ДИАЛАБ")
 SINCE_DATE      = os.getenv("SINCE_DATE", "02-May-2026")
 DEST_EMAIL      = os.getenv("DEST_EMAIL", "marimigi@mail.ru")
-DEST_PASSWORD   = os.environ["DEST_PASSWORD"]
+DEST_PASSWORD   = os.getenv("DEST_PASSWORD", "")
 DEST_FOLDER     = os.getenv("DEST_FOLDER", "rezalt LAB moimed")
 
 IMAP_HOST = "imap.mail.ru"
