@@ -43,14 +43,14 @@ IMAP_HOST = "imap.mail.ru"
 IMAP_PORT  = 993
 
 DEST_EMAIL    = os.getenv("DEST_EMAIL", "marimigi@mail.ru")
-DEST_PASSWORD = os.environ["DEST_PASSWORD"]
+DEST_PASSWORD = os.getenv("DEST_PASSWORD", "")
 
 CLINIC_CONFIG = {
     "moimed": {
         "label":       "МОЙ МЕД",
         "icon":        "🏥",
         "email":       os.getenv("MAILRU_EMAIL", "moimed23@mail.ru"),
-        "password":    os.environ["MAILRU_PASSWORD"],
+        "password":    os.getenv("MAILRU_PASSWORD", ""),
         "folder":      os.getenv("MAILRU_FOLDER", "ЛАБОРАТОРИЯ ДИАЛАБ"),
         "dest_folder": os.getenv("DEST_FOLDER", "rezalt LAB moimed"),
         "color":       "#1565C0",
@@ -59,14 +59,19 @@ CLINIC_CONFIG = {
         "label":       "ЛайтМед",
         "icon":        "🏨",
         "email":       os.getenv("LITEMED_EMAIL", "litemed@mail.ru"),
-        "password":    os.environ["LITEMED_PASSWORD"],
+        "password":    os.getenv("LITEMED_PASSWORD", ""),
         "folder":      os.getenv("LITEMED_FOLDER", "ДИАЛАБ ЛАБОРАТОРИЯ_РЕЗУЛЬТАТЫ"),
         "dest_folder": os.getenv("LITEMED_DEST_FOLDER", "litemed LAB rezalt"),
         "color":       "#0277BD",
     },
 }
 
-claude_client = anthropic.Anthropic(api_key=os.environ["ANTHROPIC_API_KEY"])
+_api_key = os.getenv("ANTHROPIC_API_KEY", "")
+if not _api_key:
+    st.error("⚠️ Не настроены секреты. Откройте Manage app → Settings → Secrets и добавьте пароли.")
+    st.stop()
+
+claude_client = anthropic.Anthropic(api_key=_api_key)
 
 # ── CSS ────────────────────────────────────────────────────────────────────────
 
