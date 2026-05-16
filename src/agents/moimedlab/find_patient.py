@@ -78,18 +78,26 @@ def save_doc_to_dest_folder(subject: str, patient_query: str,
     print(f"  Сохранено в '{DEST_FOLDER}' на {DEST_EMAIL}")
 
 
-def find_and_send(patient_name_fragment: str) -> None:
+def find_and_send(patient_name_fragment: str, since_date: str | None = None) -> None:
     print(f"Ищу письма с '{patient_name_fragment}' в папке '{MAILRU_FOLDER}'...")
 
+    # Step 1: fetch all matching raw emails in one short IMAP session
+    raw_emails: list[bytes] = []
     with IMAPClient(IMAP_HOST, port=IMAP_PORT, ssl=True) as client:
         client.login(MAILRU_EMAIL, MAILRU_PASSWORD)
         print("Авторизация успешна")
 
         client.select_folder(MAILRU_FOLDER)
-        all_messages = client.search(["ALL"])
-        print(f"Всего писем в папке: {len(all_messages)}")
 
-        found = []
+        if since_date:
+            # since_date format: "DD-Mon-YYYY", e.g. "1-May-2026"
+            all_messages = client.search(["SINCE", since_date])
+            print(f"Писем с {since_date}: {len(all_messages)}")
+        else:
+            all_messages = client.search(["ALL"])
+            print(f"Всего писем в папке: {len(all_messages)}")
+
+        found_ids = []
         for msg_id in all_messages:
             raw_data    = client.fetch([msg_id], ["ENVELOPE"])
             envelope    = raw_data[msg_id][b"ENVELOPE"]
@@ -99,49 +107,57 @@ def find_and_send(patient_name_fragment: str) -> None:
                 if isinstance(subject_raw, bytes) else str(subject_raw)
             )
             if patient_name_fragment.lower() in subject.lower():
-                found.append(msg_id)
+                found_ids.append(msg_id)
                 print(f"  Найдено: #{msg_id} | {subject}")
 
-        if not found:
+        if not found_ids:
             print(f"Писем с '{patient_name_fragment}' не найдено.")
             return
 
-        print(f"\nНайдено {len(found)} писем. Интерпретирую...")
-        results = []
+        print(f"\nНайдено {len(found_ids)} писем. Скачиваю...")
+        for msg_id in found_ids:
+            raw_data = client.fetch([msg_id], ["RFC822"])
+            raw_emails.append(raw_data[msg_id][b"RFC822"])
+        print(f"Скачано {len(raw_emails)} писем. Закрываю IMAP.")
 
-        for msg_id in found:
-            raw_data  = client.fetch([msg_id], ["RFC822"])
-            raw_email = raw_data[msg_id][b"RFC822"]
-            msg = email.message_from_bytes(raw_email)
+    # Step 2: interpret with Claude (no IMAP connection held open)
+    print("Интерпретирую...")
+    results = []
+    for raw_email in raw_emails:
+        msg = email.message_from_bytes(raw_email)
 
-            from_addr = msg.get("From", "неизвестно")
-            date_raw  = msg.get("Date", "")
-            try:
-                email_date = parsedate_to_datetime(date_raw).strftime("%d.%m.%Y")
-            except Exception:
-                email_date = date_raw or "дата неизвестна"
+        from_addr = msg.get("From", "неизвестно")
+        date_raw  = msg.get("Date", "")
+        try:
+            email_date = parsedate_to_datetime(date_raw).strftime("%d.%m.%Y")
+        except Exception:
+            email_date = date_raw or "дата неизвестна"
 
-            body, attachments = extract_email_content(msg)
-            patient_name = decode_subject(msg)
-            full_content = build_full_content(body, attachments)
+        body, attachments = extract_email_content(msg)
+        patient_name = decode_subject(msg)
+        full_content = build_full_content(body, attachments)
 
-            print(f"  Обрабатываю: {patient_name} | {email_date}")
+        print(f"  Обрабатываю: {patient_name} | {email_date}")
 
-            if full_content == "[Письмо пустое, вложения отсутствуют]":
-                print("  Пустое — пропускаю")
-                continue
+        if full_content == "[Письмо пустое, вложения отсутствуют]":
+            print("  Пустое — пропускаю")
+            continue
 
-            interpretation = interpret_with_claude(
-                patient_name, from_addr, email_date, full_content
-            )
-            results.append({
-                "name": patient_name,
-                "date": email_date,
-                "order": "",
-                "analysis_count": 1,
-                "interpretation": interpretation,
-            })
-            print(f"  + Готово: {patient_name}")
+        interpretation = interpret_with_claude(
+            patient_name, from_addr, email_date, full_content
+        )
+        results.append({
+            "name": patient_name,
+            "date": email_date,
+            "order": "",
+            "analysis_count": 1,
+            "interpretation": interpretation,
+        })
+        print(f"\n{'=' * 60}")
+        print(f"  {patient_name}  |  {email_date}")
+        print(f"{'=' * 60}")
+        print(interpretation)
+        print(f"{'=' * 60}\n")
 
     if not results:
         print("Нет результатов для отправки.")

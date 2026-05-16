@@ -141,7 +141,11 @@ def find_and_send(patient_name_fragment: str) -> None:
                 "analysis_count": 1,
                 "interpretation": interpretation,
             })
-            print(f"  + Готово: {patient_name}")
+            print(f"\n{'=' * 60}")
+            print(f"  {patient_name}  |  {email_date}")
+            print(f"{'=' * 60}")
+            print(interpretation)
+            print(f"{'=' * 60}\n")
 
     if not results:
         print("Нет результатов для отправки.")

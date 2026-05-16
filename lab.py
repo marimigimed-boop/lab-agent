@@ -10,7 +10,13 @@
 """
 
 import sys
+import io
 from pathlib import Path
+
+# Кириллица в Windows-терминале
+if sys.stdout.encoding and sys.stdout.encoding.lower() != "utf-8":
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8", errors="replace")
 
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT))
@@ -22,14 +28,16 @@ def usage():
 
 
 if __name__ == "__main__":
-    if len(sys.argv) < 3:
-        usage()
-
-    clinic  = sys.argv[1].lower().strip()
-    patient = " ".join(sys.argv[2:]).strip()
-
-    if not patient:
-        usage()
+    if len(sys.argv) >= 3:
+        clinic  = sys.argv[1].lower().strip()
+        patient = " ".join(sys.argv[2:]).strip()
+    else:
+        print("-" * 50)
+        print("  Лаб-агент - интерпретация анализов")
+        print("-" * 50)
+        clinic  = input("Клиника (moimed / litemed): ").strip().lower()
+        patient = input("Фамилия пациента: ").strip()
+        print()
 
     if clinic in ("moimed", "моймед", "мой мед"):
         from src.agents.moimedlab.find_patient import find_and_send
