@@ -110,16 +110,27 @@ section[data-testid="stSidebar"] .stRadio label {
     color: rgba(255,255,255,0.9) !important;
     font-size: 15px;
 }
-section[data-testid="stSidebar"] .stTextInput input {
-    background: rgba(255,255,255,0.15) !important;
-    border: 1px solid rgba(255,255,255,0.4) !important;
-    color: white !important;
+/* Поле ввода — белый фон, тёмный текст (надёжно в любой версии Streamlit) */
+section[data-testid="stSidebar"] input,
+section[data-testid="stSidebar"] input[type="text"],
+section[data-testid="stSidebar"] textarea {
+    background-color: white !important;
+    color: #1a237e !important;
+    caret-color: #1a237e !important;
+    border: 2px solid rgba(255,255,255,0.7) !important;
     border-radius: 8px !important;
 }
-section[data-testid="stSidebar"] .stTextInput input::placeholder {
-    color: rgba(255,255,255,0.6) !important;
+section[data-testid="stSidebar"] [data-baseweb="base-input"],
+section[data-testid="stSidebar"] [data-baseweb="input"],
+section[data-testid="stSidebar"] [data-testid="stTextInputRootElement"] {
+    background-color: white !important;
+    border-radius: 8px !important;
 }
-section[data-testid="stSidebar"] .stTextInput label {
+section[data-testid="stSidebar"] input::placeholder {
+    color: #90a4ae !important;
+}
+section[data-testid="stSidebar"] .stTextInput label,
+section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
     color: rgba(255,255,255,0.9) !important;
     font-weight: 600 !important;
 }
