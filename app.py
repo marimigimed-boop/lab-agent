@@ -333,6 +333,17 @@ def decode_header_str(raw: str) -> str:
 
 def search_patient_emails(clinic_key: str, patient_fragment: str) -> list[bytes]:
     cfg = CLINIC_CONFIG[clinic_key]
+
+    # IMAP LOGIN требует ASCII — проверяем пароль до подключения
+    try:
+        cfg["password"].encode("ascii")
+    except UnicodeEncodeError:
+        raise ValueError(
+            "Пароль содержит нелатинские символы (кириллица/грузинский). "
+            "Откройте Streamlit Cloud → Manage app → Settings → Secrets "
+            "и убедитесь, что пароль написан латинскими буквами."
+        )
+
     raw_emails = []
 
     with IMAPClient(IMAP_HOST, port=IMAP_PORT, ssl=True) as client:
