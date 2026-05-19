@@ -103,7 +103,7 @@ section[data-testid="stSidebar"] {
     background: linear-gradient(180deg, #0D47A1 0%, #1565C0 60%, #1976D2 100%);
     border-right: none;
 }
-section[data-testid="stSidebar"] * {
+section[data-testid="stSidebar"] *:not(input):not(textarea):not([data-baseweb="input"] *) {
     color: white !important;
 }
 section[data-testid="stSidebar"] .stRadio label {
