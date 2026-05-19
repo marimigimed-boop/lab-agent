@@ -110,23 +110,23 @@ section[data-testid="stSidebar"] .stRadio label {
     color: rgba(255,255,255,0.9) !important;
     font-size: 15px;
 }
-/* Поле ввода — принудительный чёрный текст на белом фоне */
+/* Поле ввода — тёмный фон, белый текст (под стиль сайдбара) */
 section[data-testid="stSidebar"] input {
-    background-color: #ffffff !important;
-    color: #000000 !important;
-    -webkit-text-fill-color: #000000 !important;
-    caret-color: #000000 !important;
-    border: 2px solid #90CAF9 !important;
+    background-color: rgba(255,255,255,0.15) !important;
+    color: white !important;
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
+    border: 1px solid rgba(255,255,255,0.5) !important;
     border-radius: 8px !important;
     font-size: 14px !important;
 }
 section[data-testid="stSidebar"] input::placeholder {
-    color: #888888 !important;
-    -webkit-text-fill-color: #888888 !important;
+    color: rgba(255,255,255,0.55) !important;
+    -webkit-text-fill-color: rgba(255,255,255,0.55) !important;
 }
 section[data-testid="stSidebar"] [data-baseweb="base-input"],
 section[data-testid="stSidebar"] [data-baseweb="input"] {
-    background-color: #ffffff !important;
+    background-color: rgba(255,255,255,0.15) !important;
     border-radius: 8px !important;
 }
 section[data-testid="stSidebar"] .stTextInput label,
