@@ -98,55 +98,29 @@ CUSTOM_CSS = """
     background: var(--bg-page);
 }
 
-/* Боковая панель */
+/* Боковая панель — светлый фон, тёмный текст */
 section[data-testid="stSidebar"] {
-    background: linear-gradient(180deg, #0D47A1 0%, #1565C0 60%, #1976D2 100%);
-    border-right: none;
+    background: linear-gradient(180deg, #E3F2FD 0%, #BBDEFB 100%);
+    border-right: 2px solid #90CAF9;
 }
-/* Белый текст только для конкретных элементов сайдбара */
-section[data-testid="stSidebar"] p,
-section[data-testid="stSidebar"] span,
-section[data-testid="stSidebar"] div.sidebar-logo,
-section[data-testid="stSidebar"] div.sidebar-label,
-section[data-testid="stSidebar"] div.sidebar-section,
-section[data-testid="stSidebar"] h2,
-section[data-testid="stSidebar"] label {
-    color: white !important;
+section[data-testid="stSidebar"] * {
+    color: #0D47A1 !important;
 }
 section[data-testid="stSidebar"] .stRadio label {
-    color: rgba(255,255,255,0.9) !important;
+    color: #1565C0 !important;
     font-size: 15px;
 }
 section[data-testid="stSidebar"] .stTextInput label,
 section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] p {
-    color: rgba(255,255,255,0.9) !important;
+    color: #1565C0 !important;
     font-weight: 600 !important;
-}
-/* Поле ввода — белый фон, тёмный текст */
-section[data-testid="stSidebar"] input {
-    background-color: white !important;
-    color: #1a237e !important;
-    -webkit-text-fill-color: #1a237e !important;
-    caret-color: #1a237e !important;
-    border: 1px solid rgba(255,255,255,0.5) !important;
-    border-radius: 8px !important;
-    font-size: 14px !important;
-}
-section[data-testid="stSidebar"] input::placeholder {
-    color: #90a4ae !important;
-    -webkit-text-fill-color: #90a4ae !important;
-}
-section[data-testid="stSidebar"] [data-baseweb="base-input"],
-section[data-testid="stSidebar"] [data-baseweb="input"] {
-    background-color: white !important;
-    border-radius: 8px !important;
 }
 
 /* Кнопка поиска */
 section[data-testid="stSidebar"] .stButton button {
-    background: rgba(255,255,255,0.2) !important;
+    background: #1565C0 !important;
     color: white !important;
-    border: 2px solid rgba(255,255,255,0.6) !important;
+    border: none !important;
     border-radius: 10px !important;
     font-weight: 700 !important;
     font-size: 16px !important;
