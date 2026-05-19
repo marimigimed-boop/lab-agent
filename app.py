@@ -297,6 +297,12 @@ div[data-testid="stMarkdownContainer"] tr:nth-child(even) td {
 #MainMenu {visibility: hidden;}
 footer {visibility: hidden;}
 header {visibility: hidden;}
+
+/* Кнопка открытия боковой панели — всегда видима */
+[data-testid="collapsedControl"] {
+    visibility: visible !important;
+    display: flex !important;
+}
 </style>
 """
 
