@@ -419,7 +419,7 @@ def save_word_to_email(clinic_key: str, patient_fragment: str,
 # ── Интерфейс ──────────────────────────────────────────────────────────────────
 
 st.set_page_config(
-    page_title="Лаб-агент | МОЙ МЕД",
+    page_title="ЛАБ-АГЕНТ v2 | МОЙ МЕД",
     page_icon="🔬",
     layout="centered",
     initial_sidebar_state="collapsed",
