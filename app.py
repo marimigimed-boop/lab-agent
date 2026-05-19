@@ -421,75 +421,68 @@ def save_word_to_email(clinic_key: str, patient_fragment: str,
 st.set_page_config(
     page_title="Лаб-агент | МОЙ МЕД",
     page_icon="🔬",
-    layout="wide",
-    initial_sidebar_state="expanded",
+    layout="centered",
+    initial_sidebar_state="collapsed",
 )
 
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-# ── Боковая панель ─────────────────────────────────────────────────────────────
+# ── Заголовок ─────────────────────────────────────────────────────────────────
 
-with st.sidebar:
-    st.markdown("""
-    <div class="sidebar-logo">
-        <span class="icon">🔬</span>
-        <h2>ЛАБ-АГЕНТ</h2>
-        <p>Интерпретация анализов</p>
-    </div>
-    """, unsafe_allow_html=True)
-
-    st.markdown('<div class="sidebar-label">Выберите клинику</div>', unsafe_allow_html=True)
-    clinic_label = st.radio(
-        label="Клиника",
-        options=["🏥  МОЙ МЕД", "🏨  ЛайтМед"],
-        index=0,
-        label_visibility="collapsed",
-    )
-    clinic_key = "moimed" if "МОЙ МЕД" in clinic_label else "litemed"
-
-    st.markdown('<div class="sidebar-section"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-label">Поиск пациента</div>', unsafe_allow_html=True)
-
-    patient = st.text_input(
-        label="Фамилия пациента",
-        placeholder="Введите фамилию...",
-        label_visibility="collapsed",
-    )
-
-    st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
-
-    start = st.button(
-        "🔍  Интерпретировать",
-        disabled=not patient.strip(),
-        use_container_width=True,
-    )
-
-    st.markdown('<div class="sidebar-section"></div>', unsafe_allow_html=True)
-    st.markdown('<div class="sidebar-label">Подсказка</div>', unsafe_allow_html=True)
-    st.markdown("""
-    <div style="font-size:12px; opacity:0.8; line-height:1.6;">
-        Введите фамилию пациента или её часть. Агент найдёт все совпадения в почте и интерпретирует каждый анализ.
-    </div>
-    """, unsafe_allow_html=True)
-
-# ── Главная область ────────────────────────────────────────────────────────────
-
-cfg = CLINIC_CONFIG[clinic_key]
-
-st.markdown(f"""
-<div class="app-header">
-    <h1>{cfg['icon']} {cfg['label']} — Лабораторные анализы</h1>
-    <p>ИИ-интерпретация результатов на основе актуальных референсов 2024–2026 · Claude Opus</p>
+st.markdown("""
+<div class="app-header" style="text-align:center;">
+    <div style="font-size:48px;margin-bottom:8px;">🔬</div>
+    <h1>ЛАБ-АГЕНТ</h1>
+    <p>ИИ-интерпретация лабораторных анализов · Claude Opus</p>
 </div>
 """, unsafe_allow_html=True)
+
+# ── Поисковая карточка по центру ──────────────────────────────────────────────
+
+st.markdown("""
+<div style="background:white;border-radius:16px;padding:32px;
+     box-shadow:0 4px 20px rgba(21,101,192,0.12);border:1px solid #BBDEFB;
+     margin-bottom:24px;">
+""", unsafe_allow_html=True)
+
+st.markdown('<p style="font-size:14px;font-weight:600;color:#1565C0;margin-bottom:8px;">Выберите клинику</p>', unsafe_allow_html=True)
+clinic_label = st.radio(
+    label="Клиника",
+    options=["🏥  МОЙ МЕД", "🏨  ЛайтМед"],
+    index=0,
+    horizontal=True,
+    label_visibility="collapsed",
+)
+clinic_key = "moimed" if "МОЙ МЕД" in clinic_label else "litemed"
+
+st.markdown("<div style='height:16px'></div>", unsafe_allow_html=True)
+
+st.markdown('<p style="font-size:14px;font-weight:600;color:#1565C0;margin-bottom:8px;">Фамилия пациента</p>', unsafe_allow_html=True)
+patient = st.text_input(
+    label="Фамилия пациента",
+    placeholder="Введите фамилию...",
+    label_visibility="collapsed",
+)
+
+st.markdown("<div style='height:12px'></div>", unsafe_allow_html=True)
+
+start = st.button(
+    "🔍  Интерпретировать",
+    disabled=not patient.strip(),
+    use_container_width=True,
+)
+
+st.markdown("</div>", unsafe_allow_html=True)
+
+cfg = CLINIC_CONFIG[clinic_key]
 
 # Пустой стейт (нет поиска)
 if not start or not patient.strip():
     st.markdown("""
     <div class="empty-state">
         <div class="icon">🧪</div>
-        <h3>Введите фамилию пациента</h3>
-        <p>В боковой панели слева введите фамилию и нажмите «Интерпретировать»</p>
+        <h3>Введите фамилию и нажмите «Интерпретировать»</h3>
+        <p style="font-size:13px;color:#90A4AE;">Агент найдёт все письма с анализами этого пациента и расшифрует каждый показатель</p>
     </div>
     """, unsafe_allow_html=True)
 
