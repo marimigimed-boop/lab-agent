@@ -110,34 +110,24 @@ section[data-testid="stSidebar"] .stRadio label {
     color: rgba(255,255,255,0.9) !important;
     font-size: 15px;
 }
-/* Поле ввода — белый фон, тёмный текст */
-section[data-testid="stSidebar"] input,
-section[data-testid="stSidebar"] input[type="text"],
-section[data-testid="stSidebar"] textarea {
-    background-color: white !important;
-    color: #1a237e !important;
-    -webkit-text-fill-color: #1a237e !important;
-    caret-color: #1a237e !important;
-    border: 2px solid rgba(255,255,255,0.7) !important;
+/* Поле ввода — принудительный чёрный текст на белом фоне */
+section[data-testid="stSidebar"] input {
+    background-color: #ffffff !important;
+    color: #000000 !important;
+    -webkit-text-fill-color: #000000 !important;
+    caret-color: #000000 !important;
+    border: 2px solid #90CAF9 !important;
     border-radius: 8px !important;
-}
-section[data-testid="stSidebar"] [data-baseweb="base-input"],
-section[data-testid="stSidebar"] [data-baseweb="input"],
-section[data-testid="stSidebar"] [data-testid="stTextInputRootElement"],
-section[data-testid="stSidebar"] [data-testid="stTextInput"] > div,
-section[data-testid="stSidebar"] [class*="st-"] input {
-    background-color: white !important;
-    border-radius: 8px !important;
+    font-size: 14px !important;
 }
 section[data-testid="stSidebar"] input::placeholder {
-    color: #90a4ae !important;
-    -webkit-text-fill-color: #90a4ae !important;
+    color: #888888 !important;
+    -webkit-text-fill-color: #888888 !important;
 }
-/* Принудительный белый фон для любого input внутри сайдбара */
-section[data-testid="stSidebar"] * input {
-    background: white !important;
-    color: #1a237e !important;
-    -webkit-text-fill-color: #1a237e !important;
+section[data-testid="stSidebar"] [data-baseweb="base-input"],
+section[data-testid="stSidebar"] [data-baseweb="input"] {
+    background-color: #ffffff !important;
+    border-radius: 8px !important;
 }
 section[data-testid="stSidebar"] .stTextInput label,
 section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
