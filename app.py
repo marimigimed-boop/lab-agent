@@ -110,24 +110,34 @@ section[data-testid="stSidebar"] .stRadio label {
     color: rgba(255,255,255,0.9) !important;
     font-size: 15px;
 }
-/* Поле ввода — белый фон, тёмный текст (надёжно в любой версии Streamlit) */
+/* Поле ввода — белый фон, тёмный текст */
 section[data-testid="stSidebar"] input,
 section[data-testid="stSidebar"] input[type="text"],
 section[data-testid="stSidebar"] textarea {
     background-color: white !important;
     color: #1a237e !important;
+    -webkit-text-fill-color: #1a237e !important;
     caret-color: #1a237e !important;
     border: 2px solid rgba(255,255,255,0.7) !important;
     border-radius: 8px !important;
 }
 section[data-testid="stSidebar"] [data-baseweb="base-input"],
 section[data-testid="stSidebar"] [data-baseweb="input"],
-section[data-testid="stSidebar"] [data-testid="stTextInputRootElement"] {
+section[data-testid="stSidebar"] [data-testid="stTextInputRootElement"],
+section[data-testid="stSidebar"] [data-testid="stTextInput"] > div,
+section[data-testid="stSidebar"] [class*="st-"] input {
     background-color: white !important;
     border-radius: 8px !important;
 }
 section[data-testid="stSidebar"] input::placeholder {
     color: #90a4ae !important;
+    -webkit-text-fill-color: #90a4ae !important;
+}
+/* Принудительный белый фон для любого input внутри сайдбара */
+section[data-testid="stSidebar"] * input {
+    background: white !important;
+    color: #1a237e !important;
+    -webkit-text-fill-color: #1a237e !important;
 }
 section[data-testid="stSidebar"] .stTextInput label,
 section[data-testid="stSidebar"] [data-testid="stWidgetLabel"] {
@@ -331,7 +341,8 @@ def decode_header_str(raw: str) -> str:
     )
 
 
-def search_patient_emails(clinic_key: str, patient_fragment: str) -> list[bytes]:
+def search_patient_emails(clinic_key: str, patient_fragment: str) -> tuple[list[bytes], int]:
+    """Returns (matching_emails, total_emails_in_folder)."""
     cfg = CLINIC_CONFIG[clinic_key]
 
     # IMAP LOGIN требует ASCII — проверяем пароль до подключения
@@ -351,6 +362,7 @@ def search_patient_emails(clinic_key: str, patient_fragment: str) -> list[bytes]
         client.select_folder(cfg["folder"])
 
         all_ids = client.search(["ALL"])
+        total = len(all_ids)
         found_ids = []
         for msg_id in all_ids:
             raw     = client.fetch([msg_id], ["ENVELOPE"])
@@ -366,7 +378,7 @@ def search_patient_emails(clinic_key: str, patient_fragment: str) -> list[bytes]
             data = client.fetch([msg_id], ["RFC822"])
             raw_emails.append(data[msg_id][b"RFC822"])
 
-    return raw_emails
+    return raw_emails, total
 
 
 def stream_interpretation(patient_name: str, from_addr: str,
@@ -516,13 +528,17 @@ else:
 
     with st.spinner("Подключаюсь к почте…"):
         try:
-            raw_emails = search_patient_emails(clinic_key, patient)
+            raw_emails, total_emails = search_patient_emails(clinic_key, patient)
         except Exception as e:
             st.error(f"Ошибка подключения к почте: {e}")
             st.stop()
 
     if not raw_emails:
-        st.warning(f"Письма с «{patient}» не найдены в папке **{cfg['folder']}**")
+        st.warning(
+            f"Письма с «{patient}» не найдены в папке **{cfg['folder']}**  \n"
+            f"Всего писем в папке: **{total_emails}**.  \n"
+            f"Проверьте: правильно ли написана фамилия, и та ли выбрана клиника."
+        )
         st.stop()
 
     st.markdown(f"""
@@ -566,9 +582,13 @@ else:
         """, unsafe_allow_html=True)
 
         with st.container():
-            interpretation = st.write_stream(
-                stream_interpretation(patient_name, from_addr, email_date, full_content)
-            )
+            st.markdown('<div style="background:white;border-radius:12px;padding:20px;border:1px solid #BBDEFB;margin-bottom:16px;">', unsafe_allow_html=True)
+            placeholder = st.empty()
+            interpretation = ""
+            for chunk in stream_interpretation(patient_name, from_addr, email_date, full_content):
+                interpretation += chunk
+                placeholder.markdown(f'<div style="color:#1A237E;font-size:14px;line-height:1.7;">{interpretation}</div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
         st.markdown("<div style='height:8px'></div>", unsafe_allow_html=True)
 
